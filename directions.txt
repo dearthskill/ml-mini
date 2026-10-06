@@ -1,0 +1,78 @@
+NSL-KDD Reproduction: How to rerun using the venv
+=================================================
+
+All commands are run from the project folder:
+
+    cd /Users/rohitsmac/ml-mini
+
+
+1. Activate the virtual environment
+-----------------------------------
+The venv is already created in .venv/ (Python 3.9) with all packages installed.
+
+    source .venv/bin/activate
+
+Your prompt will show (.venv). When you are done, type `deactivate` to leave it.
+
+(Alternative without activating: replace `python` below with `.venv/bin/python`.)
+
+
+2. Run the full pipeline
+------------------------
+    python src/main.py
+
+This trains 5 seeds x 10 epochs and then runs a separate 50-epoch training run for Figure 2.
+It takes about 20 seconds on a Mac CPU. It uses CUDA automatically if available.
+
+Optional arguments:
+
+    python src/main.py --epochs 20              # change epochs for the main runs
+    python src/main.py --seeds 0 1 2            # choose which seeds to run
+    python src/main.py --epochs 10 --seeds 0 1 2 3 4
+
+Note: the Figure 2 run is always 50 epochs on seed 0, whatever you pass.
+
+
+3. Where the outputs go (results/)
+----------------------------------
+Each run overwrites these files:
+
+    metrics.csv                 per-seed train/test accuracy (multiclass + binary)
+    summary.md                  mean +/- std table compared with the paper
+    fig2_accuracy_vs_epoch.png  train/test accuracy per epoch (50-epoch run)
+    confusion_matrix.png        test-set confusion matrix by category (seed 0)
+    model_seed0.pt              saved model weights for seed 0
+
+
+4. If the venv is missing or broken (recreate it)
+-------------------------------------------------
+    rm -rf .venv
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+
+The data files must exist at data/KDDTrain+.txt and data/KDDTest+.txt.
+
+
+5. What each script does (src/)
+-------------------------------
+main.py      The entry point; it is the only script you run. It loads the data, trains one
+             model per seed, evaluates it, saves the seed-0 model and confusion matrix,
+             runs the 50-epoch Figure 2 training, and writes everything to results/.
+
+data.py      Loads the two NSL-KDD files and drops the difficulty column. It one-hot
+             encodes protocol_type, service and flag, giving 122 inputs. It standardizes
+             the features using statistics from the training set only. It maps labels to
+             24 classes: normal, 22 training attacks, and "other" for attacks that only
+             appear in the test set. It also maps attacks to the Normal/DoS/Probe/R2L/U2R
+             categories.
+
+model.py     The neural network: 122 inputs -> 500 hidden (sigmoid) -> 24 outputs
+             (softmax is applied in the loss function).
+
+train.py     The training loop: mini-batch SGD, learning rate 0.5, batch size 1000, no
+             momentum, L2 weight decay 1e-4. The data is reshuffled every epoch and the
+             seed is fixed so results are reproducible.
+
+evaluate.py  Computes multiclass accuracy and binary normal-vs-attack accuracy. It also
+             draws the Figure 2 accuracy plot and the category confusion matrix.
